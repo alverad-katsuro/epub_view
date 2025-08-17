@@ -1,16 +1,15 @@
+import 'package:epub_view/epub_view.dart';
 import 'package:epub_view/src/data/epub_cfi_reader.dart';
 import 'package:html/dom.dart' as dom;
 
 import 'models/paragraph.dart';
 
-export 'package:epubx/epubx.dart' hide Image;
-
 List<EpubChapter> parseChapters(EpubBook epubBook) =>
-    epubBook.Chapters!.fold<List<EpubChapter>>(
+    epubBook.chapters.fold<List<EpubChapter>>(
       [],
       (acc, next) {
         acc.add(next);
-        next.SubChapters!.forEach(acc.add);
+        //next.subChapters.forEach(acc.add);
         return acc;
       },
     );
@@ -33,17 +32,25 @@ List<dom.Element> _removeAllDiv(List<dom.Element> elements) {
 }
 
 ParseParagraphsResult parseParagraphs(
-  List<EpubChapter> chapters,
-  EpubContent? content,
-) {
+    List<EpubChapter> chapters, EpubContent? content,
+    {List<int>? chapterIndexesInit, List<Paragraph>? accInit}) {
   String? filename = '';
-  final List<int> chapterIndexes = [];
+  List<int> chapterIndexes = chapterIndexesInit ?? [];
   final paragraphs = chapters.fold<List<Paragraph>>(
-    [],
+    accInit ?? [],
     (acc, next) {
+      if (next.contentFileName == null) {
+        if (next.subChapters.isNotEmpty) {
+          parseParagraphs(next.subChapters, content,
+              chapterIndexesInit: chapterIndexes,
+              accInit: acc); // adicionar chapterIndexes como parametro
+          return acc;
+        }
+        // TODO pode ter paragrafos e não ser so um index
+      }
       List<dom.Element> elmList = [];
-      if (filename != next.ContentFileName) {
-        filename = next.ContentFileName;
+      if (filename != next.contentFileName) {
+        filename = next.contentFileName;
         final document = EpubCfiReader().chapterDocument(next);
         if (document != null) {
           final result = convertDocumentToElements(document);
@@ -51,7 +58,7 @@ ParseParagraphsResult parseParagraphs(
         }
       }
 
-      if (next.Anchor == null) {
+      if (next.anchor == null) {
         // last element from document index as chapter index
         chapterIndexes.add(acc.length);
         acc.addAll(elmList
@@ -60,7 +67,7 @@ ParseParagraphsResult parseParagraphs(
       } else {
         final index = elmList.indexWhere(
           (elm) => elm.outerHtml.contains(
-            'id="${next.Anchor}"',
+            'id="${next.anchor}"',
           ),
         );
         if (index == -1) {

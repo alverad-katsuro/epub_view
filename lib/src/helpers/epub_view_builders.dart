@@ -22,6 +22,7 @@ typedef ChaptersBuilder = Widget Function(
   EpubViewBuilders builders,
   EpubBook document,
   List<EpubChapter> chapters,
+  List<EpubChapter> flatChapters,
   List<Paragraph> paragraphs,
   int index,
   int chapterIndex,
@@ -69,16 +70,21 @@ class DefaultBuilderOptions {
   final EdgeInsetsGeometry chapterPadding;
   final EdgeInsetsGeometry paragraphPadding;
   final TextStyle textStyle;
+  final Axis axis;
+  final bool reverse;
 
   const DefaultBuilderOptions({
     this.loaderSwitchDuration = const Duration(seconds: 1),
     this.transitionBuilder = DefaultBuilderOptions._transitionBuilder,
-    this.chapterPadding = const EdgeInsets.all(8),
-    this.paragraphPadding = const EdgeInsets.symmetric(horizontal: 16),
+    this.chapterPadding = const EdgeInsets.all(0),
+    this.paragraphPadding =
+        const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+    this.axis = Axis.vertical,
     this.textStyle = const TextStyle(
       height: 1.25,
       fontSize: 16,
     ),
+    this.reverse = false,
   });
 
   static Widget _transitionBuilder(Widget child, Animation<double> animation) =>

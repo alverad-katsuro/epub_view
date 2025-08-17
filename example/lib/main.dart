@@ -30,8 +30,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   Brightness get platformBrightness =>
-      MediaQueryData.fromView(WidgetsBinding.instance.window)
-          .platformBrightness;
+      MediaQuery.of(context).platformBrightness;
 
   void _setSystemUIOverlayStyle() {
     if (platformBrightness == Brightness.light) {
@@ -81,8 +80,8 @@ class _MyHomePageState extends State<MyHomePage> {
   void initState() {
     _epubReaderController = EpubController(
       document:
-          // EpubDocument.openAsset('assets/New-Findings-on-Shirdi-Sai-Baba.epub'),
           EpubDocument.openAsset('assets/New-Findings-on-Shirdi-Sai-Baba.epub'),
+      // EpubDocument.openAsset('assets/teste.epub'),
       // epubCfi:
       //     'epubcfi(/6/26[id4]!/4/2/2[id4]/22)', // book.epub Chapter 3 paragraph 10
       // epubCfi:
@@ -103,7 +102,7 @@ class _MyHomePageState extends State<MyHomePage> {
           title: EpubViewActualChapter(
             controller: _epubReaderController,
             builder: (chapterValue) => Text(
-              chapterValue?.chapter?.Title?.replaceAll('\n', '').trim() ?? '',
+              chapterValue?.chapter?.title?.replaceAll('\n', '').trim() ?? '',
               textAlign: TextAlign.start,
             ),
           ),

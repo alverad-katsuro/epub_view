@@ -79,15 +79,18 @@ class EpubController {
     int index = -1;
 
     return _cacheTableOfContents =
-        _document!.Chapters!.fold<List<EpubViewChapter>>(
+        _document!.chapters.fold<List<EpubViewChapter>>(
       [],
       (acc, next) {
-        index += 1;
-        acc.add(EpubViewChapter(next.Title, _getChapterStartIndex(index)));
-        for (final subChapter in next.SubChapters!) {
+        if (next.htmlContent != null) {
+          index += 1;
+        }
+        acc.add(EpubViewChapter(next.title, _getChapterStartIndex(index),
+            subChaptersCount: next.subChapters.length));
+        for (final subChapter in next.subChapters) {
           index += 1;
           acc.add(EpubViewSubChapter(
-              subChapter.Title, _getChapterStartIndex(index)));
+              subChapter.title, _getChapterStartIndex(index)));
         }
         return acc;
       },

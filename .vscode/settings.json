@@ -1,9 +1,10 @@
 {
-    "cSpell.words": [
-      "Epub",
-      "epubcfi",
-      "epubx",
-      "prepend",
-      "rxdart"
-    ]
+  "cSpell.words": [
+    "Epub",
+    "epubcfi",
+    "epub_enchanted",
+    "prepend",
+    "rxdart"
+  ],
+  "java.configuration.updateBuildConfiguration": "automatic"
 }

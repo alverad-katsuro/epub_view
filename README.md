@@ -41,7 +41,7 @@ Widget build(BuildContext context) => Scaffold(
     title: EpubViewActualChapter(
       controller: _epubController,
       builder: (chapterValue) => Text(
-        'Chapter: ' + (chapterValue?.chapter?.Title?.replaceAll('\n', '').trim() ?? ''),
+        'Chapter: ' + (chapterValue?.chapter?.title?.replaceAll('\n', '').trim() ?? ''),
         textAlign: TextAlign.start,
       )
     ),

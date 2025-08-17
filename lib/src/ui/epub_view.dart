@@ -7,11 +7,13 @@ import 'package:epub_view/src/data/epub_parser.dart';
 import 'package:epub_view/src/data/models/chapter.dart';
 import 'package:epub_view/src/data/models/chapter_view_value.dart';
 import 'package:epub_view/src/data/models/paragraph.dart';
+import 'package:epub_view/src/ui/zoom_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
+import 'package:flutter_html_table/flutter_html_table.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
-export 'package:epubx/epubx.dart' hide Image;
+export 'package:epub_enchanted/epub_enchanted.dart' hide Image;
 
 part '../epub_controller.dart';
 part '../helpers/epub_view_builders.dart';
@@ -58,12 +60,15 @@ class _EpubViewState extends State<EpubView> {
   ItemScrollController? _itemScrollController;
   ItemPositionsListener? _itemPositionListener;
   List<EpubChapter> _chapters = [];
+  late final List<EpubChapter> _flatChapters = chapterFlat(_chapters);
   List<Paragraph> _paragraphs = [];
   EpubCfiReader? _epubCfiReader;
   EpubChapterViewValue? _currentValue;
   final _chapterIndexes = <int>[];
-
+  Timer? _debounce;
   EpubController get _controller => widget.controller;
+  bool _isTapEligible = false;
+  bool _isDragging = false;
 
   @override
   void initState() {
@@ -93,7 +98,21 @@ class _EpubViewState extends State<EpubView> {
   void dispose() {
     _itemPositionListener!.itemPositions.removeListener(_changeListener);
     _controller._detach();
+    _debounce?.cancel();
     super.dispose();
+  }
+
+  List<EpubChapter> chapterFlat(List<EpubChapter> chaps) {
+    List<EpubChapter> chapters = [];
+
+    for (var chapter in chaps) {
+      if (chapter.subChapters.isNotEmpty) {
+        chapters.addAll(chapterFlat(chapter.subChapters));
+      } else {
+        chapters.add(chapter);
+      }
+    }
+    return chapters;
   }
 
   Future<bool> _init() async {
@@ -102,7 +121,7 @@ class _EpubViewState extends State<EpubView> {
     }
     _chapters = parseChapters(_controller._document!);
     final parseParagraphsResult =
-        parseParagraphs(_chapters, _controller._document!.Content);
+        parseParagraphs(_chapters, _controller._document!.content);
     _paragraphs = parseParagraphsResult.flatParagraphs;
     _chapterIndexes.addAll(parseParagraphsResult.chapterIndexes);
 
@@ -134,7 +153,7 @@ class _EpubViewState extends State<EpubView> {
       leadingEdge: position.itemLeadingEdge,
     );
     _currentValue = EpubChapterViewValue(
-      chapter: chapterIndex >= 0 ? _chapters[chapterIndex] : null,
+      chapter: chapterIndex >= 0 ? _flatChapters[chapterIndex] : null,
       chapterNumber: chapterIndex + 1,
       paragraphNumber: paragraphIndex + 1,
       position: position,
@@ -232,7 +251,7 @@ class _EpubViewState extends State<EpubView> {
   EpubChapter? _chapterByFileName(String? fileName) =>
       _chapters.firstWhereOrNull((chapter) {
         if (fileName != null) {
-          if (chapter.ContentFileName!.contains(fileName)) {
+          if (chapter.contentFileName!.contains(fileName)) {
             return true;
           } else {
             return false;
@@ -308,7 +327,7 @@ class _EpubViewState extends State<EpubView> {
         ),
         alignment: Alignment.centerLeft,
         child: Text(
-          chapter.Title ?? '',
+          chapter.title ?? '',
           style: const TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.w600,
@@ -321,6 +340,7 @@ class _EpubViewState extends State<EpubView> {
     EpubViewBuilders builders,
     EpubBook document,
     List<EpubChapter> chapters,
+    List<EpubChapter> flatChapters,
     List<Paragraph> paragraphs,
     int index,
     int chapterIndex,
@@ -334,14 +354,20 @@ class _EpubViewState extends State<EpubView> {
     final defaultBuilder = builders as EpubViewBuilders<DefaultBuilderOptions>;
     final options = defaultBuilder.options;
 
+    final css = Style.fromCss(
+        document.content?.css.values.toList().first.content ?? '', null);
+
     return Column(
       children: <Widget>[
-        if (chapterIndex >= 0 && paragraphIndex == 0)
-          builders.chapterDividerBuilder(chapters[chapterIndex]),
+        if (index >= 0 && paragraphIndex == 0)
+          builders.chapterDividerBuilder(flatChapters[chapterIndex]),
         Html(
+          // TODO aqui tem q criar um componente q junta os html e cria uma pagina do livro
           data: paragraphs[index].element.outerHtml,
           onLinkTap: (href, _, __) => onExternalLinkPressed(href!),
+
           style: {
+            ...css,
             'html': Style(
               padding: HtmlPaddings.only(
                 top: (options.paragraphPadding as EdgeInsets?)?.top,
@@ -350,18 +376,21 @@ class _EpubViewState extends State<EpubView> {
                 left: (options.paragraphPadding as EdgeInsets?)?.left,
               ),
             ).merge(Style.fromTextStyle(options.textStyle)),
+            '*': Style(height: Height.auto(), width: Width.auto()),
+            'td': Style(border: Border.all(width: 1))
           },
           extensions: [
+            const TableHtmlExtension(),
             TagExtension(
               tagsToExtend: {"img"},
               builder: (imageContext) {
                 final url =
                     imageContext.attributes['src']!.replaceAll('../', '');
-                final content = Uint8List.fromList(
-                    document.Content!.Images![url]!.Content!);
-                return Image(
-                  image: MemoryImage(content),
-                );
+                final content =
+                    Uint8List.fromList(document.content!.images[url]!.content!);
+                final image = Image.memory(content);
+
+                return ZoomableImagePreview(image: image);
               },
             ),
           ],
@@ -371,26 +400,93 @@ class _EpubViewState extends State<EpubView> {
   }
 
   Widget _buildLoaded(BuildContext context) {
-    return ScrollablePositionedList.builder(
-      shrinkWrap: widget.shrinkWrap,
-      initialScrollIndex: _epubCfiReader!.paragraphIndexByCfiFragment ?? 0,
-      itemCount: _paragraphs.length,
-      itemScrollController: _itemScrollController,
-      itemPositionsListener: _itemPositionListener,
-      itemBuilder: (BuildContext context, int index) {
-        return widget.builders.chapterBuilder(
-          context,
-          widget.builders,
-          widget.controller._document!,
-          _chapters,
-          _paragraphs,
-          index,
-          _getChapterIndexBy(positionIndex: index),
-          _getParagraphIndexBy(positionIndex: index),
-          _onLinkPressed,
-        );
-      },
-    );
+    final defaultBuilder =
+        widget.builders as EpubViewBuilders<DefaultBuilderOptions>;
+    final options = defaultBuilder.options;
+    return GestureDetector(
+        onTapDown: (_) {
+          // Marcamos que um toque é potencialmente válido e que ainda não estamos arrastando.
+          _isTapEligible = true;
+          _isDragging = false;
+
+          // Inicia um "cronômetro". Se o usuário segurar o dedo por mais de 200ms,
+          // o toque não é mais elegível. Isso evita que um "long press" acione a navegação.
+          Future.delayed(const Duration(milliseconds: 300), () {
+            _isTapEligible = false;
+          });
+        },
+
+        // 2. O sistema detectou o início de um gesto de arrastar.
+        onPanStart: (_) {
+          // Imediatamente invalida o toque e marca que estamos arrastando.
+          _isTapEligible = false;
+          _isDragging = true;
+        },
+
+        // 3. O sistema cancelou nosso toque (geralmente porque o "arrastar" da lista venceu a disputa).
+        onTapCancel: () {
+          _isTapEligible = false;
+        },
+        onTapUp: (TapUpDetails details) {
+          if (_isTapEligible &&
+              !_isDragging &&
+              options.axis == Axis.horizontal) {
+            // Pega a largura total da tela
+            final screenWidth = MediaQuery.of(context).size.width;
+            // Pega a posição X (horizontal) do toque
+            final tapPosition = details.localPosition.dx;
+
+            final bool isRightSideTap = tapPosition > screenWidth / 2;
+
+            final bool shouldGoNext = isRightSideTap ^ options.reverse;
+
+            if (shouldGoNext) {
+              _goNext();
+            } else {
+              _goPrevious();
+            }
+            // Reseta as flags para o próximo toque.
+            _isTapEligible = false;
+            _isDragging = false;
+          }
+        },
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            if (notification is ScrollEndNotification &&
+                options.axis == Axis.horizontal) {
+              _onScrollEnded();
+            }
+            return true;
+          },
+          child: ScrollablePositionedList.builder(
+            // TODO tem q pensar numa forma de envolver esse cara já com a qtd e paginas para passar pro itemCount, ou criar um outro EpubView so q para Paginas e n lista
+            shrinkWrap: widget.shrinkWrap,
+            scrollDirection: options.axis,
+            initialScrollIndex:
+                _epubCfiReader!.paragraphIndexByCfiFragment ?? 0,
+            itemCount: _paragraphs.length,
+            itemScrollController: _itemScrollController,
+            itemPositionsListener: _itemPositionListener,
+            reverse: options.reverse,
+            physics: options.axis == Axis.vertical
+                ? null
+                : const PageScrollPhysics(),
+            itemBuilder: (BuildContext context, int index) {
+              return widget.builders.chapterBuilder(
+                context,
+                widget.builders,
+                widget.controller._document!,
+                _chapters,
+                _flatChapters,
+                _paragraphs,
+                index,
+                _getChapterIndexBy(positionIndex: index),
+                _getParagraphIndexBy(positionIndex: index),
+                _onLinkPressed,
+              );
+            },
+          ),
+        ));
   }
 
   static Widget _builder(
@@ -431,6 +527,71 @@ class _EpubViewState extends State<EpubView> {
       duration: options.loaderSwitchDuration,
       transitionBuilder: options.transitionBuilder,
       child: content,
+    );
+  }
+
+  void _onScrollEnded() {
+    // Se já houver um debounce ativo, cancele-o
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+
+    // Crie um novo debounce para executar a lógica de snap após um curto período de inatividade
+    _debounce = Timer(const Duration(milliseconds: 200), () {
+      if (!_itemScrollController!.isAttached) return;
+
+      final positions = _itemPositionListener!.itemPositions.value;
+      if (positions.isNotEmpty) {
+        // Lógica para encontrar o item mais próximo do topo
+        // O itemLeadingEdge é a distância do topo do item ao topo da viewport.
+        // Queremos o item com a menor distância (o mais próximo do topo).
+        final closestItem = positions.reduce((a, b) {
+          return (a.itemLeadingEdge).abs() < (b.itemLeadingEdge).abs() ? a : b;
+        });
+
+        // Pega o índice do item mais próximo
+        final targetIndex = closestItem.index;
+
+        // Rola programaticamente para o item alvo, garantindo que ele fique
+        // perfeitamente alinhado no topo da lista.
+        _itemScrollController!.scrollTo(
+          index: targetIndex,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
+  }
+
+  // NOVA FUNÇÃO: Move para o item anterior
+  void _goPrevious() {
+    final positions = _itemPositionListener?.itemPositions.value ?? [];
+    if (positions.isNotEmpty) {
+      // Pega o índice do primeiro item visível e subtrai 1
+      final firstVisibleIndex = positions.first.index;
+      final targetIndex = firstVisibleIndex - 1;
+      _scrollToIndex(targetIndex);
+    }
+  }
+
+  // NOVA FUNÇÃO: Move para o próximo item
+  void _goNext() {
+    final positions = _itemPositionListener?.itemPositions.value ?? [];
+    if (positions.isNotEmpty) {
+      // Pega o índice do primeiro item visível e soma 1
+      final firstVisibleIndex = positions.first.index;
+      final targetIndex = firstVisibleIndex + 1;
+      _scrollToIndex(targetIndex);
+    }
+  }
+
+  // NOVA FUNÇÃO: Centraliza a lógica de rolagem
+  void _scrollToIndex(int index) {
+    // Garante que o índice esteja dentro dos limites da lista
+    final clampedIndex = index.clamp(0, _paragraphs.length - 1);
+
+    _itemScrollController?.scrollTo(
+      index: clampedIndex,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeInOut,
     );
   }
 

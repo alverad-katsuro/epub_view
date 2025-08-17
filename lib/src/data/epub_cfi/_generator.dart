@@ -1,4 +1,4 @@
-import 'package:epubx/epubx.dart';
+import 'package:epub_enchanted/epub_enchanted.dart';
 import 'package:html/dom.dart';
 
 class EpubCfiGenerator {
@@ -9,13 +9,13 @@ class EpubCfiGenerator {
 
   String generatePackageDocumentCFIComponent(
       EpubChapter chapter, EpubPackage? packageDocument) {
-    validatePackageDocument(packageDocument, chapter.Anchor);
+    validatePackageDocument(packageDocument, chapter.anchor);
 
     final index = getIdRefIndex(chapter, packageDocument!);
     final pos = getIdRefPosition(index);
     final spineIdRef = index >= 0
-        ? packageDocument.Spine!.Items![index].IdRef
-        : chapter.Anchor;
+        ? packageDocument.spine!.items[index].idRef
+        : chapter.anchor;
 
     // Append an !; this assumes that a CFI content document CFI component
     // will be appended at some point
@@ -84,22 +84,22 @@ class EpubCfiGenerator {
   }
 
   int getIdRefIndex(EpubChapter chapter, EpubPackage packageDocument) {
-    final items = packageDocument.Spine!.Items!;
+    final items = packageDocument.spine!.items;
     int index = -1;
     int partIndex = -1;
-    String? edRef = chapter.Anchor;
+    String? edRef = chapter.anchor;
 
-    if (chapter.Anchor == null) {
+    if (chapter.anchor == null) {
       // filename w/o extension
-      edRef = _fileNameAsChapterName(chapter.ContentFileName!);
+      edRef = _fileNameAsChapterName(chapter.contentFileName!);
     }
 
     for (var i = 0; i < items.length; i++) {
-      if (edRef == items[i].IdRef) {
+      if (edRef == items[i].idRef) {
         index = i;
         break;
       }
-      if (items[i].IdRef!.contains(edRef!)) {
+      if (items[i].idRef!.contains(edRef!)) {
         partIndex = i;
       }
     }

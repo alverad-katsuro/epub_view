@@ -1,13 +1,14 @@
 class EpubViewChapter {
-  EpubViewChapter(this.title, this.startIndex);
+  EpubViewChapter(this.title, this.startIndex, {this.subChaptersCount = 0});
 
   final String? title;
   final int startIndex;
+  final int? subChaptersCount;
 
   String get type => this is EpubViewSubChapter ? 'subchapter' : 'chapter';
 
   @override
-  String toString() => '$type: {title: $title, startIndex: $startIndex}';
+  String toString() => '$type: {title: $title, startIndex: $startIndex}, subs: $subChaptersCount';
 }
 
 class EpubViewSubChapter extends EpubViewChapter {

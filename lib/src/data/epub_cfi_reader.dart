@@ -1,11 +1,9 @@
+import 'package:epub_view/epub_view.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' show parse;
 
 import 'epub_cfi/epub_cfi.dart';
-import 'epub_parser.dart';
 import 'models/paragraph.dart';
-
-export 'package:epubx/epubx.dart' hide Image;
 
 class EpubCfiReader {
   EpubCfiReader()
@@ -80,7 +78,7 @@ class EpubCfiReader {
     }
 
     return generator.generatePackageDocumentCFIComponent(
-        chapter, book.Schema!.Package!);
+        chapter, book.schema!.package!);
   }
 
   String? generateCfi({
@@ -134,7 +132,7 @@ class EpubCfiReader {
     if (chapter == null) {
       return null;
     }
-    final html = chapter.HtmlContent!.replaceAllMapped(
+    final html = chapter.htmlContent!.replaceAllMapped(
         RegExp(r'<\s*([^\s>]+)([^>]*)\/\s*>'),
         (match) => '<${match.group(1)}${match.group(2)}></${match.group(1)}>');
     final regExp = RegExp(
@@ -155,8 +153,8 @@ class EpubCfiReader {
 
     final index = chapters.indexWhere(
       (chapter) =>
-          chapter.Anchor == cfiStep.idAssertion ||
-          chapter.ContentFileName!.contains(cfiStep.idAssertion!),
+          chapter.anchor == cfiStep.idAssertion ||
+          chapter.contentFileName!.contains(cfiStep.idAssertion!),
     );
 
     if (index == -1) {

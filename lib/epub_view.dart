@@ -1,4 +1,4 @@
-export 'package:epubx/epubx.dart';
+export 'package:epub_enchanted/epub_enchanted.dart';
 
 export 'src/ui/actual_chapter.dart';
 export 'src/ui/epub_view.dart';

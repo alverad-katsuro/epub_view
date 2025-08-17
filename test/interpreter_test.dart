@@ -28,7 +28,7 @@ void main() {
     Element? result;
     try {
       final document =
-          EpubCfiReader().chapterDocument(_book.Chapters![0].SubChapters![2]);
+          EpubCfiReader().chapterDocument(_book.chapters![0].subChapters![2]);
       result = EpubCfiInterpreter().searchLocalPathForHref(
         document!.documentElement,
         _cfiFragment.path!.localPath!,
@@ -45,7 +45,7 @@ void main() {
 
   test('searchLocalPathForHref success', () async {
     final document =
-        EpubCfiReader().chapterDocument(_book.Chapters![0].SubChapters![1]);
+        EpubCfiReader().chapterDocument(_book.chapters![0].subChapters![1]);
     final result = EpubCfiInterpreter().searchLocalPathForHref(
       document!.documentElement,
       _cfiFragment.path!.localPath!,
